@@ -8,9 +8,9 @@
 <template>
     <div class="play_routing_body">
         <img :src="songImg" alt="" class="body_img">
-        <div class="play_routing_lyric">
-            <div class="play_routing_lyric_g">{{g}}</div>
-        </div>
+        <scroll-view scroll-y class="play_routing_lyric" :scroll-top="scrollTopData">
+            <div v-for="(item,index) in lyricDataStr" class="play_routing_lyric_g" :class="{lyric_g_hide: index === gateTime}">{{item[1]}}</div>
+        </scroll-view>
         <div class="play_routing_first">
             <div class="song_name">{{songName}}</div>
             <div class="song_author">{{songAuthor}}</div>
@@ -47,6 +47,7 @@
 </template>
 
 <script>
+
     export default {
         name: "PlayRouting",
         components: {},
@@ -74,8 +75,10 @@
                 currentLocaltion: "",//当前音频位置
                 lastOneData: 0,//当lastOneData值为1时，点击上一首会让歌曲返回听过的上一首，否则就随机生成一首
                 lyricDataStr: '',//接收歌词
-                g: '',
-                // height: 'auto'
+                lyricDataArr: [],
+                gateTime: 0,
+                scrollTopData: 0,
+                // height: 'auto',
             }
         },
         methods: {
@@ -98,25 +101,45 @@
             getLyricData(){
                 this.$fly.get(`/lyric?id=${this.songDataId}`).then(response => {
                     if (response){
+                        // this.lyricDataStr = response.data.lrc.lyric
+                        // let lyrics = this.lyricDataStr.split("\n");
+                        // let lrcObj = {};
+                        // for (let i = 0 ; i< lyrics.length ; i++) {
+                        //     let lyric = decodeURIComponent(lyrics[i]);
+                        //     let timeReg = /\[\d*:\d*((\.|\:)\d*)*\]/g;
+                        //     let timeRegExpArr = lyric.match(timeReg);
+                        //     if(!timeRegExpArr)continue;
+                        //     let clause = lyric.replace(timeReg,'');
+                        //     for (let k = 0,h =timeRegExpArr.length; k<h ;k++){
+                        //         let t = timeRegExpArr[k];
+                        //         let min = Number(String(t.match(/\[\d*/i)).slice(1)),
+                        //             sec = Number(String(t.match(/\:\d*/i)).slice(1));
+                        //         let time = min * 60 + sec;
+                        //         lrcObj[time] = clause;
+                        //     }
+                        // }
+                        // this.lyricDataStr = lrcObj
+                        // console.log(this.lyricDataStr);
                         this.lyricDataStr = response.data.lrc.lyric
                         let lyrics = this.lyricDataStr.split("\n");
-                        let lrcObj = {};
-                        for (let i = 0 ; i< lyrics.length ; i++) {
-                            let lyric = decodeURIComponent(lyrics[i]);
-                            let timeReg = /\[\d*:\d*((\.|\:)\d*)*\]/g;
-                            let timeRegExpArr = lyric.match(timeReg);
-                            if(!timeRegExpArr)continue;
-                            let clause = lyric.replace(timeReg,'');
-                            for (let k = 0,h =timeRegExpArr.length; k<h ;k++){
-                                let t = timeRegExpArr[k];
-                                let min = Number(String(t.match(/\[\d*/i)).slice(1)),
-                                    sec = Number(String(t.match(/\:\d*/i)).slice(1));
-                                let time = min * 60 + sec;
-                                lrcObj[time] = clause;
-                            }
-                        }
-                        this.lyricDataStr = lrcObj
-                        // console.log(this.lyricDataStr);
+                        let pattern = /\[\d{2}:\d{2}.\d{2}\]/g;
+                        while (!pattern.test(lyrics[0])) {
+                            lyrics = lyrics.slice(1);
+                        };
+                        lyrics[lyrics.length - 1].length === 0 && lyrics.pop();
+                        lyrics.forEach((v,i,a) => {
+                            let time = v.match(pattern);
+                            let value = v.replace(pattern, '');
+                            time.forEach((v1,i1,a1) => {
+                              let t = v1.slice(1, -1).split(':');
+                              this.lyricDataArr.push([parseInt(t[0], 10) * 60 + parseFloat(t[1]), value]);
+                            })
+                        })
+                        this.lyricDataArr.sort((a,b) => {
+                            return a[0] - b[0];
+                        })
+                        this.lyricDataStr = this.lyricDataArr
+                        console.log(this.lyricDataStr);
                     }
                 }).catch(err => {
                     console.log(err);
@@ -197,7 +220,11 @@
             },
             //上一首
             lastSong(){
-                this.$audio.destroy()
+                // this.$audio.destroy()
+                this.playing = false
+                this.rotateBlo = true
+                // this.valueNum = 0
+                // this.sliderMax = 0
                 let numObj1_1 = this.songIdData.indexOf(this.songDataId)
                 // this.$store.state.saveIndex.push(numObj1_1)
                 // console.log(numObj1_1);
@@ -220,10 +247,10 @@
                     this.lastOneData++
                     if (this.lastOneData ===1) {
                         let numDataObj = this.$store.state.saveIndex.length
-                        console.log(numDataObj);
+                        // console.log(numDataObj);
                         this.songDataId = this.songIdData[this.$store.state.saveIndex[numDataObj-1]]
-                        console.log(this.$store.state.saveIndex[numDataObj - 1]);
-                        console.log(this.songDataId);
+                        // console.log(this.$store.state.saveIndex[numDataObj - 1]);
+                        // console.log(this.songDataId);
                         this.getSongData()
                         this.getSongUrl()
                         this.getLyricData()
@@ -238,7 +265,11 @@
             },
             //下一首
             nextSong(){
-                this.$audio.destroy()
+                // this.$audio.destroy()
+                this.playing = false
+                this.rotateBlo = true
+                // this.valueNum = 0
+                // this.sliderMax = 0
                 this.lastOneData = 0//让这个值变回0，这样在点击上一首时会返回到听过的上一首
                let numObj1 = this.songIdData.indexOf(this.songDataId)
                 this.$store.state.saveIndex.push(numObj1)
@@ -248,100 +279,92 @@
                     if (numObj1 === numObj2 -1){
                         numObj1 = 0
                         this.songDataId = this.songIdData[numObj1]
-                        this.getSongData()
-                        this.getSongUrl()
-                        this.getLyricData()
                     }else if (numObj1 < numObj2 -1){
                         numObj1++
                         this.songDataId = this.songIdData[numObj1]
-                        this.getSongData()
-                        this.getSongUrl()
-                        this.getLyricData()
                     }
                 }else if (this.tabMode === 2){
                     let numObj3 = Math.floor(Math.random() * numObj2)
                     this.songDataId = this.songIdData[numObj3]
-                    this.getSongData()
-                    this.getSongUrl()
-                    this.getLyricData()
                 }
+                this.getSongData()
+                this.getSongUrl()
+                this.getLyricData()
             },
             //拖动进度条事件
             sliderChange(e){
                 this.$audio.seek(e.detail.value)
                 this.$audio.play()
-                let obj = this.lyricDataStr[Math.floor(e.detail.value)];
-                // console.log(obj);
-                if(obj!==undefined){
-                    this.g = obj;
-                    // console.log(this.g);
-                }
-                console.log(this.g);
+                this.gateTime = Math.floor(e.detail.value)
+                // let obj = this.lyricDataStr[Math.floor(e.detail.value)];
+                // // console.log(obj);
+                // if(obj!==undefined){
+                //     this.g = obj;
+                //     // console.log(this.g);
+                // }
+                // console.log(this.g);
             },
             //监听音乐进度条更新
-            onTimeUpdateObj(){
-                this.$audio.onTimeUpdate(()=> {
-                    setTimeout(() => {
-                        // console.log(this.$audio.duration);
-                        this.sliderMax = parseInt(this.$audio.duration)
-                        let duration = this.$audio.duration
-                        let min = parseInt(duration / 60)
-                        let sec = parseInt(duration % 60)
-                        if (min.toString().length === 1) {
-                            min = `0${min}`;
-                        }
-                        if (sec.toString().length === 1) {
-                            sec = `0${sec}`;
-                        }
-                        this.showtime2 = `${min}:${sec}`
-                    },1000)
-                    this.valueNum = parseInt(this.$audio.currentTime)
-                    let min1 = parseInt(this.valueNum / 60)
-                    let sec1 = parseInt(this.valueNum % 60)
-                    if (min1.toString().length === 1) {
-                        min1 = `0${min1}`;
-                    }
-                    if (sec1.toString().length === 1) {
-                        sec1 = `0${sec1}`;
-                    }
-                    this.showtime1 = `${min1}:${sec1}`
-                    let obj = this.lyricDataStr[Math.floor(this.$audio.currentTime)];
-                    // console.log(obj);
-                    if(obj!==undefined){
-                        this.g = obj;
-                        // console.log(this.g);
-                    }
-                    console.log(this.g);
-                    // console.log(this.valueNum);
-                })
-            },
+            // onTimeUpdateObj(){
+                // this.$audio.onTimeUpdate(()=> {
+                //     setTimeout(() => {
+                //         // console.log(this.$audio.duration);
+                //         this.sliderMax = parseInt(this.$audio.duration)
+                //         let duration = this.$audio.duration
+                //         let min = parseInt(duration / 60)
+                //         let sec = parseInt(duration % 60)
+                //         if (min.toString().length === 1) {
+                //             min = `0${min}`;
+                //         }
+                //         if (sec.toString().length === 1) {
+                //             sec = `0${sec}`;
+                //         }
+                //         this.showtime2 = `${min}:${sec}`
+                //     },1000)
+                //     this.valueNum = parseInt(this.$audio.currentTime)
+                //     let min1 = parseInt(this.valueNum / 60)
+                //     let sec1 = parseInt(this.valueNum % 60)
+                //     if (min1.toString().length === 1) {
+                //         min1 = `0${min1}`;
+                //     }
+                //     if (sec1.toString().length === 1) {
+                //         sec1 = `0${sec1}`;
+                //     }
+                //     this.showtime1 = `${min1}:${sec1}`
+                //     let obj = this.lyricDataStr[Math.floor(this.$audio.currentTime)];
+                //     if(obj!==undefined){
+                //         this.g = obj;
+                //     }
+                //     console.log(this.g);
+                // })
+            // },
             //监听音乐自然播放结束
-            onEndedObj(){
-                this.$audio.onEnded(() => {
-                    // this.$audio.destroy()
-                    if (this.tabMode === 1) {
-                        let numObj1 = this.songIdData.indexOf(this.songDataId)
-                        this.songDataId = this.songIdData[numObj1 + 1]
-                        console.log(this.songDataId);
-                        this.getSongData()
-                        this.getSongUrl()
-                        this.getLyricData()
-                    }else if (this.tabMode === 2){
-                        let numObj2 = this.songIdData.length
-                        let numObj3 = Math.floor(Math.random() * numObj2)
-                        this.songDataId = this.songIdData[numObj3]
-                        this.getSongData()
-                        this.getSongUrl()
-                        this.getLyricData()
-                    } else if (this.tabMode === 3){
-                        let numObj1 = this.songIdData.indexOf(this.songDataId)
-                        this.songDataId = this.songIdData[numObj1]
-                        this.getSongData()
-                        this.getSongUrl()
-                        this.getLyricData()
-                    }
-                })
-            },
+            // onEndedObj(){
+                // this.$audio.onEnded(() => {
+                //     // this.$audio.destroy()
+                //     if (this.tabMode === 1) {
+                //         let numObj1 = this.songIdData.indexOf(this.songDataId)
+                //         this.songDataId = this.songIdData[numObj1 + 1]
+                //         console.log(this.songDataId);
+                //         this.getSongData()
+                //         this.getSongUrl()
+                //         this.getLyricData()
+                //     }else if (this.tabMode === 2){
+                //         let numObj2 = this.songIdData.length
+                //         let numObj3 = Math.floor(Math.random() * numObj2)
+                //         this.songDataId = this.songIdData[numObj3]
+                //         this.getSongData()
+                //         this.getSongUrl()
+                //         this.getLyricData()
+                //     } else if (this.tabMode === 3){
+                //         let numObj1 = this.songIdData.indexOf(this.songDataId)
+                //         this.songDataId = this.songIdData[numObj1]
+                //         this.getSongData()
+                //         this.getSongUrl()
+                //         this.getLyricData()
+                //     }
+                // })
+            // },
         },
         mounted() {
            this.getSongData()
@@ -381,35 +404,10 @@
                 }).catch(err => {
                     console.log(err);
                 })
-            }else if (options.fromSinger=== '3') {
+            }else if (options.fromSinger === '3') {
                 this.songIdData = this.$store.state.searchListIdData
             }
-
-            this.$fly.get(`/lyric?id=${this.songDataId}`).then(response => {
-                if (response){
-                    this.lyricDataStr = response.data.lrc.lyric
-                    let lyrics = this.lyricDataStr.split("\n");
-                    let lrcObj = {};
-                    for (let i = 0 ; i< lyrics.length ; i++) {
-                        let lyric = decodeURIComponent(lyrics[i]);
-                        let timeReg = /\[\d*:\d*((\.|\:)\d*)*\]/g;
-                        let timeRegExpArr = lyric.match(timeReg);
-                        if(!timeRegExpArr)continue;
-                        let clause = lyric.replace(timeReg,'');
-                        for (let k = 0,h =timeRegExpArr.length; k<h ;k++){
-                            let t = timeRegExpArr[k];
-                            let min = Number(String(t.match(/\[\d*/i)).slice(1)),
-                                sec = Number(String(t.match(/\:\d*/i)).slice(1));
-                            let time = min * 60 + sec;
-                            lrcObj[time] = clause;
-                        }
-                    }
-                    this.lyricDataStr = lrcObj
-                    // console.log(this.lyricDataStr);
-                }
-            }).catch(err => {
-                console.log(err);
-            })
+            this.getLyricData()
             // console.log(this.itemDetailsId);
             this.$fly.get(`/song/url?id=${Number(options.songData)}`).then(response => {
                 if (response) {
@@ -417,54 +415,70 @@
                     console.log(this.mp3Url);
                     this.$audio.src = this.mp3Url
                     this.$audio.autoplay = true
-                    this.$audio.onTimeUpdate(()=> {
-                        setTimeout(() => {
-                            // console.log(this.$audio.duration);
-                            this.sliderMax = parseInt(this.$audio.duration)
-                            let duration = this.$audio.duration
-                            let min = parseInt(duration / 60)
-                            let sec = parseInt(duration % 60)
-                            if (min.toString().length === 1) {
-                                min = `0${min}`;
-                            }
-                            if (sec.toString().length === 1) {
-                                sec = `0${sec}`;
-                            }
-                            this.showtime2 = `${min}:${sec}`
-                            // this.audioDuration = this.$audio.duration
-                        },1000)
-                        this.valueNum = parseInt(this.$audio.currentTime)
-                        let min1 = parseInt(this.valueNum / 60)
-                        let sec1 = parseInt(this.valueNum % 60)
-                        if (min1.toString().length === 1) {
-                            min1 = `0${min1}`;
-                        }
-                        if (sec1.toString().length === 1) {
-                            sec1 = `0${sec1}`;
-                        }
-                        this.showtime1 = `${min1}:${sec1}`
-                        // console.log(this.valueNum);
-                        let obj = this.lyricDataStr[Math.floor(this.$audio.currentTime)];
-                        // console.log(obj);
-                        if(obj!==undefined){
-                            this.g = obj;
-                            // console.log(this.g);
-                        }
-                        // console.log(this.g);
-                    })
-                    // this.height =window.innerHeight+'px'
-                    // window.onresize  = ()=>{
-                    //     this.height =window.innerHeight+'px'
-                    // }
                 }
             }).catch(err => {
                 console.log(err);
             })
+            this.$audio.onTimeUpdate(()=> {
+                setTimeout(() => {
+                    // console.log(this.$audio.duration);
+                    this.sliderMax = parseInt(this.$audio.duration)
+                    let duration = this.$audio.duration
+                    let min = parseInt(duration / 60)
+                    let sec = parseInt(duration % 60)
+                    if (min.toString().length === 1) {
+                        min = `0${min}`;
+                    }
+                    if (sec.toString().length === 1) {
+                        sec = `0${sec}`;
+                    }
+                    this.showtime2 = `${min}:${sec}`
+                    // this.audioDuration = this.$audio.duration
+                },1000)
+                this.valueNum = parseInt(this.$audio.currentTime)
+                let min1 = parseInt(this.valueNum / 60)
+                let sec1 = parseInt(this.valueNum % 60)
+                if (min1.toString().length === 1) {
+                    min1 = `0${min1}`;
+                }
+                if (sec1.toString().length === 1) {
+                    sec1 = `0${sec1}`;
+                }
+                this.showtime1 = `${min1}:${sec1}`
+                // this.gateTime = Math.floor(this.$audio.currentTime)
+                // // console.log(this.valueNum);
+                // let obj = this.lyricDataStr[Math.floor(this.$audio.currentTime)];
+                // // console.log(obj);
+                // if(obj!==undefined){
+                //     this.g = obj;
+                //     // console.log(this.g);
+                // }
+                // console.log(this.gateTime);
+                if (this.gateTime >= 6) {
+                    this.scrollTopData = (this.gateTime - 6) * 20
+                }
+                if (this.gateTime !== this.lyricDataStr.length - 1){
+                    let j = 0;
+                    for (let j = this.gateTime; j < this.lyricDataStr.length ; j++){
+                        if (this.gateTime === this.lyricDataStr.length - 2) {
+                            if (parseFloat(this.$audio.currentTime) > this.lyricDataStr[this.lyricDataStr.length - 1][0]){
+                                this.gateTime = this.lyricDataStr.length - 1
+                                return
+                            }
+                        }else {
+                            if (parseFloat(this.$audio.currentTime) > this.lyricDataStr[j][0] && parseFloat(this.$audio.currentTime) < this.lyricDataStr[j+1][0]){
+                                this.gateTime = j;
+                                return;
+                            }
+                        }
+                    }
+                }
+            })
             // console.log(this.songDataId);
+            // console.log(this.songIdData.length);
             this.$audio.onPlay(() => {
 
             })
-            // console.log(this.songIdData.length);
             this.$audio.onEnded(() => {
                 // this.$audio.destroy()
                 if (this.tabMode === 1) {
@@ -583,17 +597,23 @@
 }
 .play_routing_lyric{
     width: 200px;
-    color: white;
+    height: 200px;
+    overflow: hidden;
     z-index: 1;
     position: absolute;
-    top: 170px;
+    top: 50px;
     left: 50%;
     transform: translate(-100px);
 }
 .play_routing_lyric_g{
+    color: white;
     line-height: 20px;
     font-size: 15px;
     text-align: center;
     margin:0px auto;
+}
+.lyric_g_hide{
+    color: orangered;
+    font-size: 16px;
 }
 </style>

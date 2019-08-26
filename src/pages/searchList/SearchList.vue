@@ -336,8 +336,8 @@
                     this.searchListData = response.data.result.songs
                     response.data.result.songs.forEach(item => {
                         this.searchListIdData.push(item.id)
-                        this.$store.state.searchListIdData = this.searchListIdData
-                    })
+                    this.$store.state.searchListIdData = this.searchListIdData
+                })
                     console.log(this.searchListData);
                     console.log(this.$store.state.searchListIdData);
                     // wx.hideLoading()
